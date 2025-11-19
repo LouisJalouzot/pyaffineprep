@@ -341,34 +341,34 @@ class Coregister(object):
 
         # tweak affines so we can play SPM games everafter
         target = nibabel.Nifti1Image(
-            target.get_fdata(), nibabel2spm_affine(target.get_affine())
+            target.get_fdata(), nibabel2spm_affine(target.affine)
         )
         source = nibabel.Nifti1Image(
-            source.get_fdata(), nibabel2spm_affine(source.get_affine())
+            source.get_fdata(), nibabel2spm_affine(source.affine)
         )
 
         # smooth images according to pyramidal sep
         if self.smooth_vols:
             # target
-            vxg = np.sqrt(np.sum(target.get_affine()[:3, :3] ** 2, axis=0))
+            vxg = np.sqrt(np.sum(target.affine[:3, :3] ** 2, axis=0))
             fwhmg = (
                 np.sqrt(np.maximum(np.ones(3) * self.sep[-1] ** 2 - vxg**2, [0, 0, 0]))
                 / vxg
             )
             target = nibabel.Nifti1Image(
                 gaussian_filter(target.get_fdata(), fwhm2sigma(fwhmg)),
-                target.get_affine(),
+                target.affine,
             )
 
             # source
-            vxf = np.sqrt(np.sum(source.get_affine()[:3, :3] ** 2, axis=0))
+            vxf = np.sqrt(np.sum(source.affine[:3, :3] ** 2, axis=0))
             fwhmf = (
                 np.sqrt(np.maximum(np.ones(3) * self.sep[-1] ** 2 - vxf**2, [0, 0, 0]))
                 / vxf
             )
             source = nibabel.Nifti1Image(
                 gaussian_filter(source.get_fdata(), fwhm2sigma(fwhmf)),
-                source.get_affine(),
+                source.affine,
             )
 
         # pyramidal loop
@@ -381,7 +381,7 @@ class Coregister(object):
 
             # create sampled grid for target img
             grid = make_sampled_grid(
-                target.shape, samp=_correct_voxel_samp(target.get_affine(), samp)
+                target.shape, samp=_correct_voxel_samp(target.affine, samp)
             )
 
             # interpolate target on sampled grid
@@ -396,8 +396,8 @@ class Coregister(object):
                 self.sc_,
                 sampled_target,
                 source,
-                target.get_affine(),
-                source.get_affine(),
+                target.affine,
+                source.affine,
                 grid,
                 self.cost_fun,
                 self.fwhm,

@@ -63,7 +63,7 @@ def multi_session_time_slice_diffs(img_list):
                     results_["slice_diff2_max_vol"].get_fdata(),
                     results["slice_diff2_max_vol"].get_fdata(),
                 ),
-                results["slice_diff2_max_vol"].get_affine(),
+                results["slice_diff2_max_vol"].affine,
             )
             results["session_length"].append(results_["session_length"])
     return results
@@ -157,7 +157,7 @@ def time_slice_diffs(img):
     slice_diff_max_vol[np.isnan(slice_diff_max_vol)] = 0
 
     # Return the outputs as images
-    affine = img.get_affine()
+    affine = img.affine
     diff2_mean_vol = nib.Nifti1Image(diff_mean_vol, affine)
     slice_diff2_max_vol = nib.Nifti1Image(slice_diff_max_vol, affine)
     return {

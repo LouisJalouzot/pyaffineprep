@@ -399,12 +399,10 @@ def smooth_image(img, fwhm, **kwargs):
     else:
         assert len(img.shape) == 3
 
-        smoothing_kernel = LinearFilter(
-            img.get_affine(), img.shape, fwhm=fwhm, **kwargs
-        )
+        smoothing_kernel = LinearFilter(img.affine, img.shape, fwhm=fwhm, **kwargs)
 
         return ni.Nifti1Image(
-            smoothing_kernel.smooth(img.get_fdata(), clean=True), img.get_affine()
+            smoothing_kernel.smooth(img.get_fdata(), clean=True), img.affine
         )
 
 

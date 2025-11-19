@@ -129,7 +129,7 @@ def reslice_vols(
     reslice_first_vol = True
     if target_affine is None:
         reslice_first_vol = False
-        target_affine = vol_0.get_affine()
+        target_affine = vol_0.affine
 
     # build working grid
     dim = vol_0.shape
@@ -155,7 +155,7 @@ def reslice_vols(
                 )
 
             # affine matrix for passing from vol's space to the ref vol's
-            M = scipy.linalg.inv(scipy.linalg.lstsq(target_affine, vol.get_affine())[0])
+            M = scipy.linalg.inv(scipy.linalg.lstsq(target_affine, vol.affine)[0])
             fov_msk, _ = _get_mask(M, grid, dim, wrp=wrp)
             msk = msk & fov_msk
 
@@ -168,7 +168,7 @@ def reslice_vols(
         # reslice vol
         if t > 0 or reslice_first_vol:
             # affine matrix for passing from vol's space to the ref vol's
-            M = scipy.linalg.inv(scipy.linalg.lstsq(target_affine, vol.get_affine())[0])
+            M = scipy.linalg.inv(scipy.linalg.lstsq(target_affine, vol.affine)[0])
 
             # transform vol's grid according to M
             _, new_grid = _get_mask(M, grid, dim, wrp=wrp)
@@ -185,5 +185,4 @@ def reslice_vols(
         # goal all along)
         rvols.append(nibabel.Nifti1Image(rdata.reshape(dim), target_affine))
 
-    return rvols
     return rvols
