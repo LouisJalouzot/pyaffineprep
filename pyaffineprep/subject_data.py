@@ -10,24 +10,42 @@ progressive report generation for subject during preprocessing.
 import os
 import time
 import warnings
+
 import numpy as np
 from matplotlib.pyplot import cm
 from sklearn.externals.joblib import Memory
-from nilearn._utils.compat import _basestring
-from .io_utils import (niigz2nii as do_niigz2nii, dcm2nii as do_dcm2nii,
-                       nii2niigz as do_nii2niigz,
-                       isdicom, delete_orientation, hard_link, get_shape,
-                       is_4D, is_3D, get_basenames, is_niimg)
-from .reporting.base_reporter import (
-    commit_subject_thumnbail_to_parent_gallery,
-    ResultsGallery, Thumbnail, a, img, copy_web_conf_files,
-    ProgressReport, get_subject_report_html_template,
-    get_subject_report_preproc_html_template, copy_failed_png)
 
-from .reporting.preproc_reporter import (generate_tsdiffana_thumbnail,
-                                         generate_realignment_thumbnails,
-                                         generate_coregistration_thumbnails,
-                                         make_nipype_execution_log_html)
+from .io_utils import dcm2nii as do_dcm2nii
+from .io_utils import (
+    delete_orientation,
+    get_basenames,
+    get_shape,
+    hard_link,
+    is_3D,
+    is_4D,
+    is_niimg,
+    isdicom,
+)
+from .io_utils import nii2niigz as do_nii2niigz
+from .io_utils import niigz2nii as do_niigz2nii
+from .reporting.base_reporter import (
+    ProgressReport,
+    ResultsGallery,
+    Thumbnail,
+    a,
+    commit_subject_thumnbail_to_parent_gallery,
+    copy_failed_png,
+    copy_web_conf_files,
+    get_subject_report_html_template,
+    get_subject_report_preproc_html_template,
+    img,
+)
+from .reporting.preproc_reporter import (
+    generate_coregistration_thumbnails,
+    generate_realignment_thumbnails,
+    generate_tsdiffana_thumbnail,
+    make_nipype_execution_log_html,
+)
 
 # tooltips for thumbnails in report pages
 mc_tooltip = ("Motion parameters estimated during motion-"
@@ -143,7 +161,7 @@ class SubjectData(object):
         self.nipype_results = {}
         self._set_items(**kwargs)
 
-        if isinstance(self.func, _basestring):
+        if isinstance(self.func, str):
             self.func = [self.func]
 
     def _set_items(self, **kwargs):
@@ -245,7 +263,7 @@ class SubjectData(object):
         """
         self.isdicom = False
         if self.func:
-            if not isinstance(self.func[0], _basestring):
+            if not isinstance(self.func[0], str):
                 if not is_niimg(self.func[0]):
                     self.isdicom = isdicom(self.func[0][0])
             self.func = [do_dcm2nii(sess_func, output_dir=self.output_dir)[0]
@@ -266,7 +284,7 @@ class SubjectData(object):
                 continue
 
             # functional images for this session must all be distinct abspaths
-            if not isinstance(self.func[sess1], _basestring):
+            if not isinstance(self.func[sess1], str):
                 if len(self.func[sess1]) != len(set(self.func[sess1])):
                     # Oops! there must be a repetition somewhere
                     for x in self.func[sess1]:
@@ -280,7 +298,7 @@ class SubjectData(object):
                             sess1 + 1, rep, count))
 
             # all functional data for this session should constitute a 4D film
-            if isinstance(self.func[sess1], _basestring):
+            if isinstance(self.func[sess1], str):
                 if not is_4D(self.func[sess1]):
                     warnings.warn(
                         "Functional images for session number %i"
@@ -308,14 +326,14 @@ class SubjectData(object):
                         ('The same image %s specified for session number %i '
                          'and %i' % (self.func[sess1], sess1 + 1,
                                      sess2 + 1)))
-                if isinstance(self.func[sess1], _basestring):
+                if isinstance(self.func[sess1], str):
                     if self.func[sess1] == self.func[sess2]:
                         raise RuntimeError(
                             'The same image %s specified for session '
                             "number %i and %i" % (
                                 self.func[sess1], sess1 + 1, sess2 + 1))
                 else:
-                    if not isinstance(self.func[sess2], _basestring):
+                    if not isinstance(self.func[sess2], str):
                         if self.func[sess2] in self.func[sess1]:
                             raise RuntimeError(
                                 'The same image %s specified for session'
@@ -338,7 +356,7 @@ class SubjectData(object):
     def _set_session_ids(self):
         if self.func is None:
             return
-        if isinstance(self.func, _basestring):
+        if isinstance(self.func, str):
             self.func = [self.func]
         if self.session_ids is None:
             if self.n_sessions > 10:
@@ -349,7 +367,7 @@ class SubjectData(object):
             self.session_ids = ["Session%i" % (sess + 1)
                                 for sess in range(self.n_sessions)]
         else:
-            if isinstance(self.session_ids, (_basestring, int)):
+            if isinstance(self.session_ids, (str, int)):
                 assert self.n_sessions == 1
                 self.session_ids = [self.session_ids]
             else:
@@ -390,7 +408,7 @@ class SubjectData(object):
         self._sanitize_output_dirs()
 
         # sanitize func
-        if isinstance(self.func, _basestring):
+        if isinstance(self.func, str):
             self.func = [self.func]
 
         # .dcm, .ima -> .nii
@@ -420,11 +438,11 @@ class SubjectData(object):
         rp_filenames = []
         for sess in range(self.n_sessions):
             sess_rps = getattr(self, "realignment_parameters")[sess]
-            if isinstance(sess_rps, _basestring):
+            if isinstance(sess_rps, str):
                 rp_filenames.append(sess_rps)
             else:
                 sess_basename = self.basenames[sess]
-                if not isinstance(sess_basename, _basestring):
+                if not isinstance(sess_basename, str):
                     sess_basename = sess_basename[0]
 
                 rp_filename = os.path.join(
@@ -466,7 +484,7 @@ class SubjectData(object):
             tmp = []
             if hasattr(self, item):
                 filenames = getattr(self, item)
-                if isinstance(filenames, _basestring):
+                if isinstance(filenames, str):
                     assert self.n_sessions == 1, filenames
                     filenames = [filenames]
                 for sess in range(self.n_sessions):
@@ -830,6 +848,24 @@ class SubjectData(object):
     def generate_report(self):
         """
         Method invoked to generate all reports in one-go. This is useful
+        for generating reports out-side the preproc logic: simply populate
+        the func, anat (optionally realignment_params, gm, wm, csf, etc.)
+        fields and then fire this method.
+
+        """
+        # misc
+        self._set_items()
+        self.sanitize()
+
+        # report proper
+        self.generate_realignment_thumbnails(log=False)
+        self.generate_coregistration_thumbnails(log=False, comment=False)
+        self.generate_segmentation_thumbnails(log=False)
+        self.generate_normalization_thumbnails(log=False)
+        self.finalize_report(last_stage=True)
+
+    def __repr__(self):
+        return repr(self.__dict__)
         for generating reports out-side the preproc logic: simply populate
         the func, anat (optionally realignment_params, gm, wm, csf, etc.)
         fields and then fire this method.

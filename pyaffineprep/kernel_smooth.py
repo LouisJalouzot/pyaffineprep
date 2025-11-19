@@ -8,14 +8,14 @@ to nipy dev.
 
 """
 
+import gc
 import os
 import sys
+
+import nibabel as ni
 import numpy as np
 import numpy.fft as npfft
-import nibabel as ni
 import scipy.linalg
-import gc
-from nilearn._utils.compat import _basestring
 
 from .affine_transformations import get_physical_coords
 from .io_utils import is_niimg
@@ -104,7 +104,7 @@ def _crop(X, tol=1.0e-10):
         slices = [slice(m[i], M[i] + 1, 1) for i in range(ndim)]
         return X[slices]
     else:
-        return np.zeros((1, ) * ndim)
+        return np.zeros((1,) * ndim)
 
 
 def _get_kernel_norm(kernel, normalization):
@@ -128,11 +128,11 @@ def _get_kernel_norm(kernel, normalization):
     kernel = np.array(kernel)
 
     # compute and return the norm
-    if normalization == 'l2':
-        return np.sqrt((kernel ** 2).sum())
-    elif normalization == 'l1':
+    if normalization == "l2":
+        return np.sqrt((kernel**2).sum())
+    elif normalization == "l1":
         return np.sum(np.fabs(kernel))
-    elif normalization == 'l1sum':
+    elif normalization == "l1sum":
         return np.sum(kernel)
 
 
@@ -143,8 +143,16 @@ class LinearFilter(object):
 
     """
 
-    def __init__(self, affine, shape, fwhm=6.0, scale=1.0, location=0.0,
-                 cov=None, normalization='l1sum'):
+    def __init__(
+        self,
+        affine,
+        shape,
+        fwhm=6.0,
+        scale=1.0,
+        location=0.0,
+        cov=None,
+        normalization="l1sum",
+    ):
         """Default constructor.
 
         Parameters
@@ -189,8 +197,7 @@ class LinearFilter(object):
         voxels.shape = (voxels.shape[0], np.product(voxels.shape[1:]))
 
         # physical coordinates relative to center
-        X = get_physical_coords(self._affine,
-                                                        voxels) - phys_center
+        X = get_physical_coords(self._affine, voxels) - phys_center
 
         X.shape = (self._ndims[1],) + tuple(self._bshape)
 
@@ -202,10 +209,11 @@ class LinearFilter(object):
         self._norm = _get_kernel_norm(kernel, self._normalization)
 
         self._kernel = kernel
-        shape_array = (np.ceil((np.asarray(self._bshape) +
-                                np.asarray(kernel.shape)) / 2) * 2 + 2)
+        shape_array = (
+            np.ceil((np.asarray(self._bshape) + np.asarray(kernel.shape)) / 2) * 2 + 2
+        )
         # shape needs to be a list of ints
-        self._shape = shape_array.astype('uint64').tolist()
+        self._shape = shape_array.astype("uint64").tolist()
         self.fkernel = np.zeros(self._shape)
         slices = [slice(0, kernel.shape[i]) for i in range(kernel.ndim)]
         self.fkernel[slices] = kernel
@@ -234,7 +242,7 @@ class LinearFilter(object):
         _X = np.rollaxis(_X, axis)
 
         # convert coordinates to FWHM units
-        if self._fwhm is not 1.0:
+        if self._fwhm != 1.0:
             f = fwhm2sigma(self._fwhm)
             if f.shape == ():
                 f = np.ones(len(self._bshape)) * f
@@ -246,7 +254,7 @@ class LinearFilter(object):
             _chol = scipy.linalg.cholesky(self._cov)
             _X = np.dot(scipy.linalg.inv(_chol), _X)
         # compute squared distance
-        D2 = np.sum(_X ** 2, axis=0)
+        D2 = np.sum(_X**2, axis=0)
 
         return D2
 
@@ -262,7 +270,7 @@ class LinearFilter(object):
 
         """
 
-        _normsq = self._normsq(X, axis) / 2.
+        _normsq = self._normsq(X, axis) / 2.0
         t = np.less_equal(_normsq, 15)
 
         return np.exp(-np.minimum(_normsq, 15)) * t
@@ -306,10 +314,9 @@ class LinearFilter(object):
         elif ndim == 3:
             n_scans = 1
         else:
-            raise ValueError('expecting either 3 or 4-d image')
+            raise ValueError("expecting either 3 or 4-d image")
 
-        slices = [slice(0, self._bshape[i], 1)
-                  for i in range(len(self._shape))]
+        slices = [slice(0, self._bshape[i], 1) for i in range(len(self._shape))]
         for _scan in range(n_scans):
             if ndim == 4:
                 data = in_data[..., _scan]
@@ -335,9 +342,15 @@ class LinearFilter(object):
                 _out = data
 
         # collect output
-        _out = _out[[slice(self._kernel.shape[i] // 2, self._bshape[i] +
-                           self._kernel.shape[i] // 2)
-                     for i in range(len(self._bshape))]]
+        _out = _out[
+            [
+                slice(
+                    self._kernel.shape[i] // 2,
+                    self._bshape[i] + self._kernel.shape[i] // 2,
+                )
+                for i in range(len(self._bshape))
+            ]
+        ]
 
         # return output
         return _out
@@ -369,7 +382,7 @@ def smooth_image(img, fwhm, **kwargs):
 
     """
 
-    if isinstance(img, _basestring):
+    if isinstance(img, str):
         img = ni.load(img)
     elif isinstance(img, tuple):
         assert len(img) == 2
@@ -381,20 +394,18 @@ def smooth_image(img, fwhm, **kwargs):
 
     if len(img.shape) == 4:
         return ni.concat_images(
-            [smooth_image(vol, fwhm, **kwargs)
-             for vol in ni.four_to_three(img)])
+            [smooth_image(vol, fwhm, **kwargs) for vol in ni.four_to_three(img)]
+        )
     else:
         assert len(img.shape) == 3
 
         smoothing_kernel = LinearFilter(
-            img.get_affine(),
-            img.shape,
-            fwhm=fwhm,
-            **kwargs)
+            img.get_affine(), img.shape, fwhm=fwhm, **kwargs
+        )
 
-        return ni.Nifti1Image(smoothing_kernel.smooth(img.get_data(),
-                                                      clean=True),
-                              img.get_affine())
+        return ni.Nifti1Image(
+            smoothing_kernel.smooth(img.get_data(), clean=True), img.get_affine()
+        )
 
 
 def centered_smoothing_kernel(fwhm, x):
@@ -404,17 +415,20 @@ def centered_smoothing_kernel(fwhm, x):
     """
 
     # variance from fwhm
-    s = fwhm ** 2 / (8 * np.log(2)) + EPS
+    s = fwhm**2 / (8 * np.log(2)) + EPS
 
     # Gaussian convolve with 0th degree B-spline
-    w1 = .5 * np.sqrt(2 / s)
-    w2 = -.5 / s
+    w1 = 0.5 * np.sqrt(2 / s)
+    w2 = -0.5 / s
     w3 = np.sqrt(s / 2 / np.pi)
-    krn = .5 * (scipy.special.erf(w1 * (x + 1)) * (x + 1) + scipy.special.erf(
-            w1 * (x - 1)) * (x - 1) - 2 * scipy.special.erf(
-            w1 * x) * x) + w3 * (np.exp(w2 * (x + 1) ** 2) + np.exp(
-            w2 * (x - 1) ** 2) - 2 * np.exp(w2 * x ** 2))
+    krn = 0.5 * (
+        scipy.special.erf(w1 * (x + 1)) * (x + 1)
+        + scipy.special.erf(w1 * (x - 1)) * (x - 1)
+        - 2 * scipy.special.erf(w1 * x) * x
+    ) + w3 * (
+        np.exp(w2 * (x + 1) ** 2) + np.exp(w2 * (x - 1) ** 2) - 2 * np.exp(w2 * x**2)
+    )
 
-    krn[krn < 0.] = 0
+    krn[krn < 0.0] = 0
 
     return krn

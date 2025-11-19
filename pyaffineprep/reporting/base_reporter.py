@@ -3,15 +3,16 @@ Basic utilities (functions, classes) for the reporting business
 """
 # Author: Elvis DOHMATOB
 
+import glob
 import os
 import re
-import glob
 import shutil
 import time
+
 import matplotlib as mpl
-import pylab as pl
 import numpy as np
-from nilearn._utils.compat import _basestring
+import pylab as pl
+
 from ..externals.tempita import HTMLTemplate, bunch
 
 # find package path
@@ -44,7 +45,7 @@ def lines2breaks(lines, delimiter="\n", number_lines=False):
     -------
     HTML-formatted string
     """
-    if isinstance(lines, _basestring):
+    if isinstance(lines, str):
         lines = lines.split(delimiter)
     if not number_lines:
         lines = ["%s" % line for line in lines]
@@ -89,7 +90,7 @@ def dict_to_html_ul(mydict):
             val = str(stuff)
         return val
 
-    if isinstance(mydict, _basestring):
+    if isinstance(mydict, str):
         return mydict
     elif isinstance(mydict, list):
         return make_li(mydict)
@@ -100,8 +101,7 @@ def dict_to_html_ul(mydict):
                 html_ul += "<li>%s: %s</li>" % (k, make_li(v))
         html_ul += "</ul>"
     else:
-        raise TypeError(
-            "Input type must be string, list, or dict, got %s" % mydict)
+        raise TypeError("Input type must be string, list, or dict, got %s" % mydict)
     return html_ul
 
 
@@ -119,11 +119,11 @@ def get_module_source_code(mod):
     string, line-numbered HTML-formated code-block
 
     """
-    if isinstance(mod, _basestring):
+    if isinstance(mod, str):
         filename = mod
     elif isinstance(mod, type(os)):
         filename = mod.__file__
-    with open(filename, 'r') as fd:
+    with open(filename, "r") as fd:
         lines = fd.read()
         return lines2breaks(lines, number_lines=True)
 
@@ -147,7 +147,8 @@ def get_gallery_html_markup():
   <div class="desc">{{thumbnail.description | html}}</div>
 </div>
 {{endfor}}
-""")
+"""
+    )
 
 
 class _HTMLElement(bunch):
@@ -163,17 +164,18 @@ class _HTMLElement(bunch):
         param-value dict of attributes for this HTML elemnt.
 
     """
+
     _compulsary_params = []
 
     def __init__(self, **kwargs):
-
         bunch.__init__(self, **kwargs)
 
         for param in self._compulsary_params:
             if not param in kwargs:
                 raise ValueError(
-                    "Need to specify '%s' parameter for HTML %s" % (
-                        param, self.__class__.__name__))
+                    "Need to specify '%s' parameter for HTML %s"
+                    % (param, self.__class__.__name__)
+                )
 
 
 class a(_HTMLElement):
@@ -207,6 +209,7 @@ class img(_HTMLElement):
         href: string
             href of the image
     """
+
     def __init__(self, **kwargs):
         _HTMLElement.__init__(self, **kwargs)
 
@@ -231,9 +234,9 @@ class Thumbnail(_HTMLElement):
         img: img `object`
             HTML image `img` object for the thumbnail
     """
+
     def __init__(self, tooltip=None, **kwargs):
-        _HTMLElement.__init__(self, tooltip=tooltip,
-                              **kwargs)
+        _HTMLElement.__init__(self, tooltip=tooltip, **kwargs)
 
 
 class ResultsGallery(object):
@@ -241,9 +244,13 @@ class ResultsGallery(object):
     Gallery of results (summarized by thumbnails).
     """
 
-    def __init__(self, loader_filename,
-                 refresh_timeout=30,  # time between successive refreshs
-                 title='Results', description=None):
+    def __init__(
+        self,
+        loader_filename,
+        refresh_timeout=30,  # time between successive refreshs
+        title="Results",
+        description=None,
+    ):
         self.loader_filename = loader_filename
         self.refresh_timeout = refresh_timeout
         self.title = title
@@ -254,14 +261,14 @@ class ResultsGallery(object):
             os.remove(self.loader_filename)
 
         # touch loader file
-        fd = open(self.loader_filename, 'a')
+        fd = open(self.loader_filename, "a")
         fd.close()
 
     def commit_results_from_filename(self, filename):
         with open(filename) as fd:
             divs = fd.read()
             fd.close()
-            loader_fd = open(self.loader_filename, 'a')
+            loader_fd = open(self.loader_filename, "a")
             loader_fd.write(divs)
             loader_fd.close()
 
@@ -275,13 +282,14 @@ class ResultsGallery(object):
 
         self.raw = get_gallery_html_markup().substitute(thumbnails=thumbnails)
 
-        fd = open(self.loader_filename, 'a')
+        fd = open(self.loader_filename, "a")
         fd.write(self.raw)
         fd.close()
 
 
-def commit_subject_thumnbail_to_parent_gallery(thumbnail, subject_id,
-                                               parent_results_gallery):
+def commit_subject_thumnbail_to_parent_gallery(
+    thumbnail, subject_id, parent_results_gallery
+):
     """Commit thumbnail (summary of subject_report) to parent results gallery,
     correcting attrs of the embedded img object as necessary.
 
@@ -297,18 +305,20 @@ def commit_subject_thumnbail_to_parent_gallery(thumbnail, subject_id,
         gallery to which thumbnail will be committed
     """
     # sanitize thumbnail
-    assert hasattr(thumbnail, 'img')
+    assert hasattr(thumbnail, "img")
     assert not thumbnail.img is None
 
     # resize thumbnail
     thumbnail.img.height = "250px"
 
     if thumbnail.img.src:
-        thumbnail.img.src = os.path.join(subject_id, "reports",
-                                         os.path.basename(thumbnail.img.src))
+        thumbnail.img.src = os.path.join(
+            subject_id, "reports", os.path.basename(thumbnail.img.src)
+        )
     if thumbnail.a.href:
-        thumbnail.a.href = os.path.join(subject_id, "reports",
-                                        os.path.basename(thumbnail.a.href))
+        thumbnail.a.href = os.path.join(
+            subject_id, "reports", os.path.basename(thumbnail.a.href)
+        )
 
     # commit thumbnail to parent's gallery
     parent_results_gallery.commit_thumbnails(thumbnail)
@@ -337,7 +347,7 @@ class ProgressReport(object):
             other_watched_files = []
         self.log_filename = log_filename
         if not self.log_filename is None:
-            open(self.log_filename, 'a').close()
+            open(self.log_filename, "a").close()
         self.watched_files = []
         self.watch_files(other_watched_files)
 
@@ -355,20 +365,20 @@ class ProgressReport(object):
         """
         if self.log_filename is None:
             return
-        with open(self.log_filename, 'a') as ofd:
+        with open(self.log_filename, "a") as ofd:
             ofd.write(msg + "<br/>")
 
     def finish(self, filename):
         """Stops the automatic reloading (by the browser, etc.) of a given
-         report page.
+        report page.
 
-         Parameters
-         ----------
-         filename:
-             file URL of page to stop re-loading
+        Parameters
+        ----------
+        filename:
+            file URL of page to stop re-loading
         """
 
-        with open(filename, 'r') as i_fd:
+        with open(filename, "r") as i_fd:
             content = i_fd.read()
             i_fd.close()
 
@@ -376,11 +386,10 @@ class ProgressReport(object):
             meta_reloader = "<meta http\-equiv=refresh content=.+?>"
             content = re.sub(meta_reloader, "", content)
 
-            old_state = ("<font color=red><i>STILL RUNNING .."
-                         "</i><blink>.</blink></font>")
+            old_state = "<font color=red><i>STILL RUNNING ..</i><blink>.</blink></font>"
             new_state = "Ended: %s" % pretty_time()
             new_content = content.replace(old_state, new_state)
-            with open(filename, 'w') as o_fd:
+            with open(filename, "w") as o_fd:
                 o_fd.write(new_content)
                 o_fd.close()
 
@@ -411,8 +420,7 @@ class ProgressReport(object):
             wildcat defining files to 'finish' (useful for globbing) in dirname
         """
 
-        self._finish_files(
-            glob.glob(os.path.join(dirname, filename_wildcat)))
+        self._finish_files(glob.glob(os.path.join(dirname, filename_wildcat)))
 
     def watch_file(self, filename):
         """Specifies (yet another) file to be watched.
@@ -422,7 +430,7 @@ class ProgressReport(object):
         filename: string
             existing filename
         """
-        assert isinstance(filename, _basestring)
+        assert isinstance(filename, str)
         self.watched_files.append(filename)
 
 
@@ -447,12 +455,10 @@ def make_standalone_colorbar(cmap, vmin, vmax, colorbar_outfile=None):
     fig = pl.figure(figsize=(6, 1))
     ax = fig.add_axes([0.05, 0.4, 0.9, 0.5])
     norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-    cb = mpl.colorbar.ColorbarBase(ax, cmap=cmap,
-                                   norm=norm,
-                                   orientation='horizontal')
+    cb = mpl.colorbar.ColorbarBase(ax, cmap=cmap, norm=norm, orientation="horizontal")
 
     # save colorbar
-    pl.savefig(colorbar_outfile, bbox_inches='tight')
+    pl.savefig(colorbar_outfile, bbox_inches="tight")
     pl.close()
 
     return cb
@@ -477,12 +483,9 @@ def get_cut_coords(map3d, n_axials=12, delta_z_axis=3):
         the computed cut_coords
 
     """
-    z_axis_max = np.unravel_index(
-        np.abs(map3d).argmax(), map3d.shape)[2]
-    z_axis_min = np.unravel_index(
-        (-np.abs(map3d)).argmin(), map3d.shape)[2]
-    z_axis_min, z_axis_max = (min(z_axis_min, z_axis_max),
-                              max(z_axis_max, z_axis_min))
+    z_axis_max = np.unravel_index(np.abs(map3d).argmax(), map3d.shape)[2]
+    z_axis_min = np.unravel_index((-np.abs(map3d)).argmin(), map3d.shape)[2]
+    z_axis_min, z_axis_max = (min(z_axis_min, z_axis_max), max(z_axis_max, z_axis_min))
     z_axis_min = min(z_axis_min, z_axis_max - delta_z_axis * n_axials)
     cut_coords = np.linspace(z_axis_min, z_axis_max, n_axials)
     return cut_coords
@@ -505,78 +508,88 @@ def _get_template(template_file, **kwargs):
 
 
 def get_subject_report_log_html_template(**kwargs):
-    """Returns html template (string) for subject log report.
-    """
-    return _get_template(os.path.join(ROOT_DIR, 'template_reports',
-                                      'subject_report_log_template.tmpl.html'),
-                         **kwargs)
+    """Returns html template (string) for subject log report."""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "subject_report_log_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def get_subject_report_html_template(**kwargs):
-    """Returns html tamplate (string) for subject report (page de garde).
-    """
-    return _get_template(os.path.join(ROOT_DIR, 'template_reports',
-                                      'subject_report_template.tmpl.html'),
-                         **kwargs)
+    """Returns html tamplate (string) for subject report (page de garde)."""
+    return _get_template(
+        os.path.join(ROOT_DIR, "template_reports", "subject_report_template.tmpl.html"),
+        **kwargs,
+    )
 
 
 def get_subject_report_preproc_html_template(**kwargs):
-    """Returns html template (string) for subject preproc report page.
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'subject_report_preproc_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for subject preproc report page."""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "subject_report_preproc_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def get_subject_report_stats_html_template(**kwargs):
-    """Returns html template (string) for subject stats report page.
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'subject_report_stats_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for subject stats report page."""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "subject_report_stats_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def get_ica_html_template(**kwargs):
-    """Returns html template (string) for subject stats report page
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'ica_report_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for subject stats report page"""
+    return _get_template(
+        os.path.join(ROOT_DIR, "template_reports", "ica_report_template.tmpl.html"),
+        **kwargs,
+    )
 
 
 def get_dataset_report_html_template(**kwargs):
-    """Returns html template (string) for dataset report page (page de garde).
-    """
+    """Returns html template (string) for dataset report page (page de garde)."""
 
-    return _get_template(os.path.join(ROOT_DIR, 'template_reports',
-                                      'dataset_report_template.tmpl.html'),
-                         **kwargs)
+    return _get_template(
+        os.path.join(ROOT_DIR, "template_reports", "dataset_report_template.tmpl.html"),
+        **kwargs,
+    )
 
 
 def get_dataset_report_preproc_html_template(**kwargs):
-    """Returns html template (string) for dataset preproc report page.
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'dataset_report_preproc_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for dataset preproc report page."""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "dataset_report_preproc_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def get_dataset_report_stats_html_template(**kwargs):
-    """Returns html template (string) for dataset stats report page
-
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'dataset_report_stats_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for dataset stats report page"""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "dataset_report_stats_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def get_dataset_report_log_html_template(**kwargs):
-    """Returns html template (string) for dataset log report page.
-
-    """
-    return _get_template(os.path.join(
-        ROOT_DIR, 'template_reports',
-        'dataset_report_log_template.tmpl.html'), **kwargs)
+    """Returns html template (string) for dataset log report page."""
+    return _get_template(
+        os.path.join(
+            ROOT_DIR, "template_reports", "dataset_report_log_template.tmpl.html"
+        ),
+        **kwargs,
+    )
 
 
 def copy_failed_png(output_dir):
@@ -584,50 +597,45 @@ def copy_failed_png(output_dir):
     Copies failed.png image to output_dir.
     """
 
-    shutil.copy(os.path.join(ROOT_DIR, "images/failed.png"),
-                output_dir)
+    shutil.copy(os.path.join(ROOT_DIR, "images/failed.png"), output_dir)
 
 
 def copy_web_conf_files(output_dir):
-    """Function to copy css, js, icon files to given directory.
-
-    """
+    """Function to copy css, js, icon files to given directory."""
 
     def _copy_web_conf_file_ext(src_dir_basename, extentions, ignore=None):
         if ignore is None:
             ignore = []
-        if isinstance(ignore, _basestring):
+        if isinstance(ignore, str):
             ignore = [ignore]
 
         for ext in extentions:
-            for src in glob.glob(os.path.join(
-                    ROOT_DIR, "%s/*%s" % (src_dir_basename, ext))):
+            for src in glob.glob(
+                os.path.join(ROOT_DIR, "%s/*%s" % (src_dir_basename, ext))
+            ):
                 # skip failed.png image (see issue #30)
                 if src.endswith("failed.png"):
                     continue
                 shutil.copy(src, output_dir)
 
     # copy js stuff
-    _copy_web_conf_file_ext("js", ['.js'])
+    _copy_web_conf_file_ext("js", [".js"])
 
     # copy css stuf
-    _copy_web_conf_file_ext("css", ['.css'])
+    _copy_web_conf_file_ext("css", [".css"])
 
     # copy icons
-    _copy_web_conf_file_ext("icons", ['.jpg', '.jpeg', '.png', '.gif'])
+    _copy_web_conf_file_ext("icons", [".jpg", ".jpeg", ".png", ".gif"])
 
     # copy images
-    _copy_web_conf_file_ext("images", ['.jpg', '.jpeg', '.png', '.gif'])
+    _copy_web_conf_file_ext("images", [".jpg", ".jpeg", ".png", ".gif"])
 
 
 def copy_report_files(src, dst):
-    """Backs-up report files (*.html, *.js, etc.) from src to dst.
-
-    """
+    """Backs-up report files (*.html, *.js, etc.) from src to dst."""
     if not os.path.exists(dst):
         os.makedirs(dst)
-    for ext in ["css", "html", "js", "php", "png", "jpeg",
-                "jpg", "gif", "json"]:
+    for ext in ["css", "html", "js", "php", "png", "jpeg", "jpg", "gif", "json"]:
         for x in glob.glob(os.path.join(src, "*.%s" % ext)):
             shutil.copy(x, dst)
 
@@ -637,4 +645,5 @@ def pretty_time():
     Returns currenct time in the format: hh:mm:ss ddd mmm yyyy.
 
     """
+    return " ".join([time.ctime().split(" ")[i] for i in [3, 0, 2, 1, 4]])
     return " ".join([time.ctime().split(" ")[i] for i in [3, 0, 2, 1, 4]])

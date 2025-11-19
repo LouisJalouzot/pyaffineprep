@@ -6,26 +6,43 @@
 """
 
 import os
-import numpy as np
-import scipy.ndimage as ndimage
-import scipy.linalg
+
 import nibabel
-from nilearn._utils.compat import _basestring
-from sklearn.externals.joblib import Parallel, delayed
-from .kernel_smooth import smooth_image
+import numpy as np
+import scipy.linalg
+import scipy.ndimage as ndimage
+from joblib import Parallel, delayed
+
 from .affine_transformations import (
-    get_initial_motion_params, transform_coords, apply_realignment_to_vol,
-    apply_realignment)
+    apply_realignment,
+    apply_realignment_to_vol,
+    get_initial_motion_params,
+    transform_coords,
+)
+from .io_utils import get_basenames, is_niimg, load_vols, save_vol, save_vols
+from .kernel_smooth import smooth_image
 from .reslice import reslice_vols
-from .io_utils import save_vol, save_vols, get_basenames, is_niimg, load_vols
 
 # useful constants
 INFINITY = np.inf
 
 
-def _single_volume_fit(moving_vol, fixed_vol_affine, fixed_vol_A0,
-                       affine_correction, b, x1, x2, x3, fwhm, n_iterations,
-                       interp, lkp, tol, log=lambda x: None):
+def _single_volume_fit(
+    moving_vol,
+    fixed_vol_affine,
+    fixed_vol_A0,
+    affine_correction,
+    b,
+    x1,
+    x2,
+    x3,
+    fwhm,
+    n_iterations,
+    interp,
+    lkp,
+    tol,
+    log=lambda x: None,
+):
     """
     Realigns moving_vol to fixed_vol.
 
@@ -89,9 +106,9 @@ def _single_volume_fit(moving_vol, fixed_vol_affine, fixed_vol_A0,
             the estimated realignment parameters
 
     """
-    moving_vol = nibabel.Nifti1Image(moving_vol.get_data(),
-                                     np.dot(affine_correction,
-                                            moving_vol.get_affine()))
+    moving_vol = nibabel.Nifti1Image(
+        moving_vol.get_data(), np.dot(affine_correction, moving_vol.get_affine())
+    )
     # initialize final rp for this vol
     vol_rp = get_initial_motion_params()
     # smooth volume t
@@ -110,33 +127,41 @@ def _single_volume_fit(moving_vol, fixed_vol_affine, fixed_vol_A0,
 
         # pass from volume t's grid to that of the reference
         # volume (0)
-        y1, y2, y3 = transform_coords(np.zeros(6), fixed_vol_affine,
-                                      moving_vol.get_affine(), [x1, x2, x3])
+        y1, y2, y3 = transform_coords(
+            np.zeros(6), fixed_vol_affine, moving_vol.get_affine(), [x1, x2, x3]
+        )
 
         # sanity mask: some voxels might have fallen out of business;
         # and zap'em
-        msk = np.nonzero((y1 >= 0) & (y1 < dim[0]) & (y2 >= 0)
-                         & (y2 < dim[1]) & (y3 >= 0)
-                         & (y3 < dim[2]))[0]
+        msk = np.nonzero(
+            (y1 >= 0)
+            & (y1 < dim[0])
+            & (y2 >= 0)
+            & (y2 < dim[1])
+            & (y3 >= 0)
+            & (y3 < dim[2])
+        )[0]
 
         # if mask is too small, then we're screwed anyway
         if len(msk) < 32:
             raise RuntimeError(
-                ("Almost all voxels have fallen out of the FOV. Only "
-                 "%i voxels survived. Registration can't work." % len(
-                     msk)))
+                (
+                    "Almost all voxels have fallen out of the FOV. Only "
+                    "%i voxels survived. Registration can't work." % len(msk)
+                )
+            )
 
         # warp: resample volume t on this new grid
-        F = ndimage.map_coordinates(V, [y1[msk], y2[msk], y3[msk]],
-                                    order=interp, mode='wrap')
+        F = ndimage.map_coordinates(
+            V, [y1[msk], y2[msk], y3[msk]], order=interp, mode="wrap"
+        )
 
         # formulate and solve LS problem for updating p
         A = fixed_vol_A0[msk, ...].copy()
         b1 = b[msk].copy()
         sc = np.sum(b1) / np.sum(F)
         b1 -= F * sc
-        q_update = scipy.linalg.lstsq(np.dot(A.T, A),
-                                      np.dot(A.T, b1))[0]
+        q_update = scipy.linalg.lstsq(np.dot(A.T, A), np.dot(A.T, b1))[0]
 
         # update q
         q[lkp] += q_update
@@ -147,15 +172,14 @@ def _single_volume_fit(moving_vol, fixed_vol_affine, fixed_vol_A0,
 
         # compute convergence criterion variables
         pss = ss
-        ss = np.sum(b1 ** 2) / len(b1)
+        ss = np.sum(b1**2) / len(b1)
 
         # compute relative gain over last iteration
-        relative_gain = np.abs((pss - ss) / pss
-                               ) if np.isfinite(pss) else INFINITY
+        relative_gain = np.abs((pss - ss) / pss) if np.isfinite(pss) else INFINITY
 
         # verbose
-        token = "\t" + "".join(['%-12.4g ' % z for z in q[lkp]])
-        token += '|  %.5g' % relative_gain
+        token = "\t" + "".join(["%-12.4g " % z for z in q[lkp]])
+        token += "|  %.5g" % relative_gain
         log(token)
 
         # check whether we've stopped converging altogether
@@ -302,8 +326,18 @@ class MRIMotionCorrection(object):
 
     """
 
-    def __init__(self, sep=4, interp=3, fwhm=5., quality=.9, tol=1e-8,
-                 lkp=None, verbose=1, n_iterations=64, n_sessions=1):
+    def __init__(
+        self,
+        sep=4,
+        interp=3,
+        fwhm=5.0,
+        quality=0.9,
+        tol=1e-8,
+        lkp=None,
+        verbose=1,
+        n_iterations=64,
+        n_sessions=1,
+    ):
         lkp = [0, 1, 2, 3, 4, 5] if lkp is None else lkp
         self.sep = sep
         self.interp = interp
@@ -331,8 +365,7 @@ class MRIMotionCorrection(object):
     def __repr__(self):
         return str(self.__dict__)
 
-    def _single_session_fit(self, vols, n_jobs=1, quality=None,
-                            affine_correction=None):
+    def _single_session_fit(self, vols, n_jobs=1, quality=None, affine_correction=None):
         """
         Realigns volumes (vols) from a single session.
 
@@ -373,40 +406,60 @@ class MRIMotionCorrection(object):
 
         # affine correction
         vol_0 = nibabel.Nifti1Image(
-            vol_0.get_data(), np.dot(affine_correction, vol_0.get_affine()))
+            vol_0.get_data(), np.dot(affine_correction, vol_0.get_affine())
+        )
 
         # voxel dimensions on the working grid
-        skip = np.sqrt(np.sum(vol_0.get_affine()[:3, :3] ** 2, axis=0)
-                       ) ** (-1) * self.sep
+        skip = (
+            np.sqrt(np.sum(vol_0.get_affine()[:3, :3] ** 2, axis=0)) ** (-1) * self.sep
+        )
 
         # build working grid
         dim = vol_0.shape
-        x1, x2, x3 = np.mgrid[0:dim[0] - .5 - 1:skip[0],
-                              0:dim[1] - .5 - 1:skip[1],
-                              0:dim[2] - .5 - 1:skip[2]].reshape((3, -1))
+        x1, x2, x3 = np.mgrid[
+            0 : dim[0] - 0.5 - 1 : skip[0],
+            0 : dim[1] - 0.5 - 1 : skip[1],
+            0 : dim[2] - 0.5 - 1 : skip[2],
+        ].reshape((3, -1))
 
         # smooth 0th volume to absorb noise before differentiating
         sref_vol = smooth_image(vol_0, self.fwhm).get_data()
 
         # resample the smoothed reference volume unto doped working grid
-        G = ndimage.map_coordinates(sref_vol, [x1, x2, x3], order=self.interp,
-                                    mode='wrap',).reshape(x1.shape)
+        G = ndimage.map_coordinates(
+            sref_vol,
+            [x1, x2, x3],
+            order=self.interp,
+            mode="wrap",
+        ).reshape(x1.shape)
 
         # compute gradient of reference volume
         Gx, Gy, Gz = np.gradient(sref_vol)
 
         # resample gradient unto working grid
-        Gx = ndimage.map_coordinates(Gx, [x1, x2, x3], order=self.interp,
-                                     mode='wrap',).reshape(x1.shape)
-        Gy = ndimage.map_coordinates(Gy, [x1, x2, x3], order=self.interp,
-                                     mode='wrap',).reshape(x1.shape)
-        Gz = ndimage.map_coordinates(Gz, [x1, x2, x3], order=self.interp,
-                                     mode='wrap',).reshape(x1.shape)
+        Gx = ndimage.map_coordinates(
+            Gx,
+            [x1, x2, x3],
+            order=self.interp,
+            mode="wrap",
+        ).reshape(x1.shape)
+        Gy = ndimage.map_coordinates(
+            Gy,
+            [x1, x2, x3],
+            order=self.interp,
+            mode="wrap",
+        ).reshape(x1.shape)
+        Gz = ndimage.map_coordinates(
+            Gz,
+            [x1, x2, x3],
+            order=self.interp,
+            mode="wrap",
+        ).reshape(x1.shape)
 
         # compute rate of change of chi2 w.r.t. parameters
-        A0 = _compute_rate_of_change_of_chisq(vol_0.get_affine(),
-                                              [x1, x2, x3], [Gx, Gy, Gz],
-                                              lkp=self.lkp)
+        A0 = _compute_rate_of_change_of_chisq(
+            vol_0.get_affine(), [x1, x2, x3], [Gx, Gy, Gz], lkp=self.lkp
+        )
 
         # compute intercept vector for LSPs
         b = G.ravel()
@@ -420,8 +473,8 @@ class MRIMotionCorrection(object):
         # (i.e of the precision matrix)
         if n_scans > 2:
             self._log(
-                ("Eliminating unimportant voxels (target quality: %s)"
-                 "...") % quality)
+                ("Eliminating unimportant voxels (target quality: %s)...") % quality
+            )
             alpha = np.vstack((A0.T, b)).T
             alpha = np.dot(alpha.T, alpha)
             det0 = scipy.linalg.det(alpha)
@@ -431,17 +484,17 @@ class MRIMotionCorrection(object):
                 # determine unimportant voxels to eliminate
                 dets = np.ndarray(A0.shape[0])
                 for t in range(A0.shape[0]):
-                    tmp = np.hstack((A0[t, ...], b[t])).reshape(
-                        (1, A0.shape[1] + 1))
+                    tmp = np.hstack((A0[t, ...], b[t])).reshape((1, A0.shape[1] + 1))
                     dets[t] = scipy.linalg.det(alpha - np.dot(tmp.T, tmp))
                 msk = np.argsort(det1 - dets)
-                msk = msk[:int(np.round(len(dets) / 10.))]
+                msk = msk[: int(np.round(len(dets) / 10.0))]
 
                 # eliminate unimportant voxels
                 n_eliminated_voxels += len(msk)
                 self._log(
-                    "\tEliminating %i voxels (current quality = %s)..." % (
-                        len(msk), det1 / det0))
+                    "\tEliminating %i voxels (current quality = %s)..."
+                    % (len(msk), det1 / det0)
+                )
                 A0 = np.delete(A0, msk, axis=0)
                 b = np.delete(b, msk, axis=0)
                 x1 = np.delete(x1, msk, axis=0)
@@ -452,28 +505,37 @@ class MRIMotionCorrection(object):
                 alpha = np.vstack((A0.T, b)).T
                 alpha = np.dot(alpha.T, alpha)
                 det1 = scipy.linalg.det(alpha)
-            self._log(
-                "...done; eliminated %i voxels.\r\n" % n_eliminated_voxels)
+            self._log("...done; eliminated %i voxels.\r\n" % n_eliminated_voxels)
 
         # register the volumes to the reference volume
         self._log("Registering volumes to reference ( = volume 1)...")
         rp = np.ndarray((n_scans, 12))
-        rp[0, ...] = get_initial_motion_params(
-            )  # don't mov the reference image
+        rp[0, ...] = get_initial_motion_params()  # don't mov the reference image
 
         if n_jobs > 1:
             svf_kwargs = {}
         else:
-            svf_kwargs = {'log': self._log}
+            svf_kwargs = {"log": self._log}
 
-        rps = Parallel(n_jobs=n_jobs)(delayed(
-              _single_volume_fit)(vol, vol_0.get_affine(), A0,
-                                  affine_correction,
-                                  b, x1, x2, x3, fwhm=self.fwhm,
-                                  n_iterations=self.n_iterations,
-                                  interp=self.interp, lkp=self.lkp,
-                                  tol=self.tol, **svf_kwargs)
-                                      for vol in vols[1:])
+        rps = Parallel(n_jobs=n_jobs)(
+            delayed(_single_volume_fit)(
+                vol,
+                vol_0.get_affine(),
+                A0,
+                affine_correction,
+                b,
+                x1,
+                x2,
+                x3,
+                fwhm=self.fwhm,
+                n_iterations=self.n_iterations,
+                interp=self.interp,
+                lkp=self.lkp,
+                tol=self.tol,
+                **svf_kwargs,
+            )
+            for vol in vols[1:]
+        )
         rp[1:, ...] = np.array(rps)
 
         return rp
@@ -510,16 +572,16 @@ class MRIMotionCorrection(object):
         """
 
         # sanitize vols and n_sessions
-        if isinstance(vols, _basestring) or isinstance(
-                vols, nibabel.Nifti1Image):
+        if isinstance(vols, str) or isinstance(vols, nibabel.Nifti1Image):
             vols = [vols]
         if len(vols) != self.n_sessions:
             raise RuntimeError(
                 "Number of session volumes (%i) != number of sessions (%i)"
-                % (len(vols), self.n_sessions))
+                % (len(vols), self.n_sessions)
+            )
 
         self.vols_ = vols
-        self.vols = [vols] if isinstance(vols, _basestring) else list(vols)
+        self.vols = [vols] if isinstance(vols, str) else list(vols)
         if len(self.vols) != self.n_sessions:
             if self.n_sessions == 1:
                 self.vols = [self.vols]
@@ -543,50 +605,62 @@ class MRIMotionCorrection(object):
         # realign first vol of each session with first vol of first session
         if self.n_sessions > 1:
             self._log(
-                ('\r\nInter-session registration: realigning first volumes'
-                 ' of all sessions...'))
+                (
+                    "\r\nInter-session registration: realigning first volumes"
+                    " of all sessions..."
+                )
+            )
 
         self.first_vols_realignment_parameters_ = self._single_session_fit(
             first_vols,
-            quality=1.  # only a few vols, we can thus allow this lux
-            )
+            quality=1.0,  # only a few vols, we can thus allow this lux
+        )
 
         rfirst_vols = apply_realignment(
-            first_vols, self.first_vols_realignment_parameters_, inverse=False)
+            first_vols, self.first_vols_realignment_parameters_, inverse=False
+        )
 
         if self.n_sessions > 1:
-            self._log('...done (inter-session registration).\r\n')
+            self._log("...done (inter-session registration).\r\n")
 
         # realign all vols of each session with first vol of that session
         self.realignment_parameters_ = []
         for sess in range(self.n_sessions):
             self._log(
-                ("Intra-session registration: Realigning session"
-                 " %i/%i...") % (sess + 1, self.n_sessions))
+                ("Intra-session registration: Realigning session %i/%i...")
+                % (sess + 1, self.n_sessions)
+            )
 
             # affine correction, for inter-session realignment
-            affine_correction = np.dot(rfirst_vols[sess].get_affine(),
-                                       scipy.linalg.inv(
-                                           rfirst_vols[0].get_affine()))
+            affine_correction = np.dot(
+                rfirst_vols[sess].get_affine(),
+                scipy.linalg.inv(rfirst_vols[0].get_affine()),
+            )
 
             sess_rp = self._single_session_fit(
-                self.vols_[sess],
-                affine_correction=affine_correction,
-                n_jobs=n_jobs)
+                self.vols_[sess], affine_correction=affine_correction, n_jobs=n_jobs
+            )
 
             self.realignment_parameters_.append(sess_rp)
-            self._log('...done; session %i.\r\n' % (sess + 1))
+            self._log("...done; session %i.\r\n" % (sess + 1))
 
         # beware, the clumpsy list comprehension is because sessions may have
         # different number of volumes (see issue #36, for example)
         self.realignment_parameters_ = [
-            sess_rp[:, :6]
-            for sess_rp in self.realignment_parameters_]
+            sess_rp[:, :6] for sess_rp in self.realignment_parameters_
+        ]
 
         return self
 
-    def transform(self, output_dir=None, reslice=False, prefix="r",
-                  basenames=None, ext=None, concat=False):
+    def transform(
+        self,
+        output_dir=None,
+        reslice=False,
+        prefix="r",
+        basenames=None,
+        ext=None,
+        concat=False,
+    ):
         """
         Saves realigned volumes and the realigment parameters to disk.
         Realigment parameters are stored in output_dir/rp.txt and Volumes
@@ -628,21 +702,25 @@ class MRIMotionCorrection(object):
                 full patsh of text file containing realignment parameters
         """
         # make sure object has been fitted
-        if not hasattr(self, 'realignment_parameters_'):
+        if not hasattr(self, "realignment_parameters_"):
             raise RuntimeError("fit(...) method not yet invoked.")
 
         # sanitize reslice param
         reslice = reslice or concat  # can't conct without reslicing
 
         # output dict
-        output = {"realigned_images": [],
-                  "realignment_parameters": self.realignment_parameters_
-                  if output_dir is None else []}
+        output = {
+            "realigned_images": [],
+            "realignment_parameters": self.realignment_parameters_
+            if output_dir is None
+            else [],
+        }
 
         for sess in range(self.n_sessions):
             concat_sess = concat
-            if (isinstance(self.vols_[sess], _basestring) or is_niimg(
-                    self.vols_[sess])) and reslice:
+            if (
+                isinstance(self.vols_[sess], str) or is_niimg(self.vols_[sess])
+            ) and reslice:
                 concat_sess = True
 
             n_scans = len(self.realignment_parameters_[sess])
@@ -650,43 +728,43 @@ class MRIMotionCorrection(object):
 
             # modify the header of each 3D vol according to the
             # estimated motion (realignment params)
-            sess_rvols = apply_realignment(self.vols_[sess],
-                                           self.realignment_parameters_[sess],
-                                           inverse=False)
+            sess_rvols = apply_realignment(
+                self.vols_[sess], self.realignment_parameters_[sess], inverse=False
+            )
 
             # reslice vols
             if reslice:
-                self._log('Reslicing volumes for session %i/%i...' % (
-                    sess + 1, self.n_sessions))
+                self._log(
+                    "Reslicing volumes for session %i/%i..."
+                    % (sess + 1, self.n_sessions)
+                )
                 sess_rvols = list(reslice_vols(sess_rvols))
-                self._log('...done; session %i/%i.' % (
-                    sess + 1, self.n_sessions))
+                self._log("...done; session %i/%i." % (sess + 1, self.n_sessions))
 
             if concat_sess:
                 sess_rvols = nibabel.concat_images(sess_rvols)
 
             if output_dir is None:
-                output['realigned_images'].append(sess_rvols)
+                output["realigned_images"].append(sess_rvols)
 
             # save output unto disk
             if output_dir is not None:
                 # make basenames for output files
                 sess_basenames = None
                 if basenames is None:
-                    if isinstance(self.vols[sess], _basestring):
-                        sess_basenames = get_basenames(self.vols[sess],
-                                                       ext=ext)
+                    if isinstance(self.vols[sess], str):
+                        sess_basenames = get_basenames(self.vols[sess], ext=ext)
                     elif isinstance(self.vols[sess], list):
-                        if isinstance(self.vols[sess][0], _basestring):
-                            sess_basenames = get_basenames(self.vols[sess],
-                                                           ext=ext)
+                        if isinstance(self.vols[sess][0], str):
+                            sess_basenames = get_basenames(self.vols[sess], ext=ext)
                     else:
                         if not isinstance(self.vols, list) or concat:
                             sess_basenames = "vols"
 
                         else:
-                            sess_basenames = ["sess_%i_vol_%i" % (sess, i)
-                                              for i in range(n_scans)]
+                            sess_basenames = [
+                                "sess_%i_vol_%i" % (sess, i) for i in range(n_scans)
+                            ]
                 else:
                     assert len(basenames) == self.n_sessions
                     sess_basenames = basenames[sess]
@@ -694,41 +772,55 @@ class MRIMotionCorrection(object):
                 # save realigned files to disk
                 if concat_sess:
                     sess_realigned_files = save_vols(
-                        sess_rvols, output_dir,
-                        basenames=sess_basenames if isinstance(sess_basenames,
-                                                               _basestring)
-                        else sess_basenames[0], concat=concat_sess, ext=ext,
-                        prefix=prefix)
+                        sess_rvols,
+                        output_dir,
+                        basenames=sess_basenames
+                        if isinstance(sess_basenames, str)
+                        else sess_basenames[0],
+                        concat=concat_sess,
+                        ext=ext,
+                        prefix=prefix,
+                    )
                 else:
-                    sess_realigned_files = [save_vol(
-                        sess_rvols[t],
-                        output_dir=output_dir,
-                        basename=sess_basenames[t] if isinstance(
-                            sess_basenames, list) else "vol_%i" % t,
-                        ext=ext, prefix=prefix) for t in range(n_scans)]
+                    sess_realigned_files = [
+                        save_vol(
+                            sess_rvols[t],
+                            output_dir=output_dir,
+                            basename=sess_basenames[t]
+                            if isinstance(sess_basenames, list)
+                            else "vol_%i" % t,
+                            ext=ext,
+                            prefix=prefix,
+                        )
+                        for t in range(n_scans)
+                    ]
 
-                output['realigned_images'].append(sess_realigned_files)
+                output["realigned_images"].append(sess_realigned_files)
 
                 # save realignment params to disk
                 if basenames is None:
                     sess_realignment_parameters_filename = os.path.join(
-                        output_dir, "rp.txt")
+                        output_dir, "rp.txt"
+                    )
                 else:
-                    if isinstance(sess_basenames, _basestring):
+                    if isinstance(sess_basenames, str):
                         sess_realignment_parameters_filename = os.path.join(
-                            output_dir,
-                            "rp_" + sess_basenames + ".txt")
+                            output_dir, "rp_" + sess_basenames + ".txt"
+                        )
                     else:
                         sess_realignment_parameters_filename = os.path.join(
-                            output_dir,
-                            "rp_" + sess_basenames[0] + ".txt")
+                            output_dir, "rp_" + sess_basenames[0] + ".txt"
+                        )
 
-                np.savetxt(sess_realignment_parameters_filename,
-                           self.realignment_parameters_[sess][..., self.lkp])
-                output['realignment_parameters'].append(
-                    sess_realignment_parameters_filename)
+                np.savetxt(
+                    sess_realignment_parameters_filename,
+                    self.realignment_parameters_[sess][..., self.lkp],
+                )
+                output["realignment_parameters"].append(
+                    sess_realignment_parameters_filename
+                )
 
-                self._log('...done; output saved to %s.' % output_dir)
+                self._log("...done; output saved to %s." % output_dir)
 
         # return
         return output

@@ -6,19 +6,20 @@ segmentation, etc.)
 
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
 import nibabel
-from nilearn.plotting import plot_img
-from nilearn.image import reorder_img, mean_img
+import numpy as np
+from nilearn.image import mean_img, reorder_img
 from nilearn.image.image import check_niimg
-from nilearn._utils.compat import _basestring
+from nilearn.plotting import plot_img
+
 from ..io_utils import load_vols
+
 EPS = np.finfo(float).eps
 
 
 def plot_spm_motion_parameters(parameter_file, title=None, close=False):
-    """ Plot motion parameters obtained with SPM software
+    """Plot motion parameters obtained with SPM software
 
     Parameters
     ----------
@@ -34,41 +35,50 @@ def plot_spm_motion_parameters(parameter_file, title=None, close=False):
     """
 
     # load parameters
-    motion = np.loadtxt(parameter_file) if isinstance(
-        parameter_file, _basestring) else parameter_file[..., :6]
+    motion = (
+        np.loadtxt(parameter_file)
+        if isinstance(parameter_file, str)
+        else parameter_file[..., :6]
+    )
 
-    motion[:, 3:] *= (180. / np.pi)
+    motion[:, 3:] *= 180.0 / np.pi
 
     # do plotting
     plt.figure()
     plt.plot(motion)
     if not title is None:
         plt.title(title)
-    plt.legend(('TransX', 'TransY', 'TransZ', 'RotX', 'RotY', 'RotZ'),
-               loc="upper left", ncol=2)
-    plt.xlabel('time(scans)')
-    plt.ylabel('Estimated motion (mm/degrees)')
+    plt.legend(
+        ("TransX", "TransY", "TransZ", "RotX", "RotY", "RotZ"), loc="upper left", ncol=2
+    )
+    plt.xlabel("time(scans)")
+    plt.ylabel("Estimated motion (mm/degrees)")
     if close:
         plt.close()
 
 
 def compute_cv(data, mask_array=None):
     if mask_array is not None:
-        cv = .0 * mask_array
-        cv[mask_array > 0] = data[mask_array > 0].std(-1) /\
-            (data[mask_array > 0].mean(-1) + EPS)
+        cv = 0.0 * mask_array
+        cv[mask_array > 0] = data[mask_array > 0].std(-1) / (
+            data[mask_array > 0].mean(-1) + EPS
+        )
     else:
         cv = data.std(-1) / (data.mean(-1) + EPS)
 
     return cv
 
 
-def plot_registration(reference_img, coregistered_img,
-                      title="untitled coregistration!",
-                      cut_coords=None,
-                      display_mode='ortho',
-                      cmap=None, close=False,
-                      output_filename=None):
+def plot_registration(
+    reference_img,
+    coregistered_img,
+    title="untitled coregistration!",
+    cut_coords=None,
+    display_mode="ortho",
+    cmap=None,
+    close=False,
+    output_filename=None,
+):
     """Plots a coregistered source as bg/contrast for the reference image
 
     Parameters
@@ -93,11 +103,9 @@ def plot_registration(reference_img, coregistered_img,
     if cmap is None:
         cmap = plt.cm.gray  # registration QA always gray cmap!
 
-    if not isinstance(coregistered_img, _basestring) and hasattr(
-            coregistered_img, "__iter__"):
+    if not isinstance(coregistered_img, str) and hasattr(coregistered_img, "__iter__"):
         coregistered_img = coregistered_img[0][0]
-    if not isinstance(reference_img, _basestring) and hasattr(
-            reference_img, "__iter__"):
+    if not isinstance(reference_img, str) and hasattr(reference_img, "__iter__"):
         reference_img = reference_img[0][0]
 
     print(reference_img)
@@ -108,25 +116,35 @@ def plot_registration(reference_img, coregistered_img,
     if cut_coords is None:
         cut_coords = (-10, -28, 17)
 
-    if display_mode in ['x', 'y', 'z']:
-        cut_coords = (cut_coords['xyz'.index(display_mode)],)
+    if display_mode in ["x", "y", "z"]:
+        cut_coords = (cut_coords["xyz".index(display_mode)],)
 
     # XXX nilearn complains about rotations in affine, etc.
     coregistered_img = reorder_img(coregistered_img, resample="continuous")
 
-    _slicer = plot_img(coregistered_img, cmap=cmap, cut_coords=cut_coords,
-                       display_mode=display_mode, black_bg=True)
+    _slicer = plot_img(
+        coregistered_img,
+        cmap=cmap,
+        cut_coords=cut_coords,
+        display_mode=display_mode,
+        black_bg=True,
+    )
 
     # XXX nilearn complains about rotations in affine, etc.
     # reference_img = reorder_img(reference_img, resample="continuous")
     _slicer.add_edges(reference_img)
     # misc
-    _slicer.title(title, size=12, color='w', alpha=0)
+    _slicer.title(title, size=12, color="w", alpha=0)
 
     if output_filename is not None:
         try:
-            plt.savefig(output_filename, dpi=200, bbox_inches='tight',
-                        facecolor="k", edgecolor="k")
+            plt.savefig(
+                output_filename,
+                dpi=200,
+                bbox_inches="tight",
+                facecolor="k",
+                edgecolor="k",
+            )
             if close:
                 plt.close()
         except AttributeError:
@@ -135,9 +153,17 @@ def plot_registration(reference_img, coregistered_img,
 
 
 def plot_segmentation(
-        img, gm_filename, wm_filename=None, csf_filename=None,
-        output_filename=None, cut_coords=None, display_mode='ortho',
-        cmap=None, title='GM + WM + CSF segmentation', close=False):
+    img,
+    gm_filename,
+    wm_filename=None,
+    csf_filename=None,
+    output_filename=None,
+    cut_coords=None,
+    display_mode="ortho",
+    cmap=None,
+    title="GM + WM + CSF segmentation",
+    close=False,
+):
     """
     Plot a contour mapping of the GM, WM, and CSF of a subject's anatomical.
 
@@ -162,28 +188,30 @@ def plot_segmentation(
         cmap = plt.cm.gray
     if cut_coords is None:
         cut_coords = (-10, -28, 17)
-    if display_mode in ['x', 'y', 'z']:
-        cut_coords = (cut_coords['xyz'.index(display_mode)],)
+    if display_mode in ["x", "y", "z"]:
+        cut_coords = (cut_coords["xyz".index(display_mode)],)
 
     # plot img
     img = mean_img(img)
     img = reorder_img(img, resample="continuous")
-    _slicer = plot_img(img, cut_coords=cut_coords, display_mode=display_mode,
-                       cmap=cmap, black_bg=True)
+    _slicer = plot_img(
+        img, cut_coords=cut_coords, display_mode=display_mode, cmap=cmap, black_bg=True
+    )
 
     # add TPM contours
     gm = nibabel.load(gm_filename)
-    _slicer.add_contours(gm, levels=[.51], colors=["r"])
+    _slicer.add_contours(gm, levels=[0.51], colors=["r"])
     if not wm_filename is None:
-        _slicer.add_contours(wm_filename, levels=[.51], colors=["g"])
+        _slicer.add_contours(wm_filename, levels=[0.51], colors=["g"])
     if not csf_filename is None:
-        _slicer.add_contours(csf_filename, levels=[.51], colors=['b'])
+        _slicer.add_contours(csf_filename, levels=[0.51], colors=["b"])
 
     # misc
-    _slicer.title(title, size=12, color='w', alpha=0)
+    _slicer.title(title, size=12, color="w", alpha=0)
     if not output_filename is None:
-        plt.savefig(output_filename, bbox_inches='tight', dpi=200,
-                    facecolor="k",
-                    edgecolor="k")
+        plt.savefig(
+            output_filename, bbox_inches="tight", dpi=200, facecolor="k", edgecolor="k"
+        )
         if close:
+            plt.close()
             plt.close()

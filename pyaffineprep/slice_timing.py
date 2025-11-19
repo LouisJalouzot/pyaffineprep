@@ -6,17 +6,19 @@
 """
 
 import os
+
 import nibabel
-import scipy
 import numpy as np
-from sklearn.utils.validation import check_is_fitted
+import scipy
 from nilearn.image.image import check_niimg
-from nilearn._utils.compat import _basestring
-from .io_utils import is_niimg, save_vols, get_basenames
+from sklearn.utils.validation import check_is_fitted
+
+from .io_utils import get_basenames, is_niimg, save_vols
 
 
-def get_slice_indices(n_slices, slice_order='ascending',
-                      interleaved=False, return_final=False):
+def get_slice_indices(
+    n_slices, slice_order="ascending", interleaved=False, return_final=False
+):
     """Function computes the (unique permutation on) slice indices, consistent
     with the specified slice order.
 
@@ -46,38 +48,41 @@ def get_slice_indices(n_slices, slice_order='ascending',
     ValueError
     """
 
-    if isinstance(slice_order, _basestring):
+    if isinstance(slice_order, str):
         slice_indices = list(range(n_slices))
         if interleaved:
             # python indexing begins from 0 (MATLAB begins from 1)
             slice_indices = slice_indices[0::2] + slice_indices[1::2]
-        if slice_order.lower() == 'ascending':
+        if slice_order.lower() == "ascending":
             pass
-        elif slice_order.lower() == 'descending':
+        elif slice_order.lower() == "descending":
             slice_indices = np.flipud(slice_indices)
         else:
             raise ValueError("Unknown slice order '%s'!" % slice_order)
     else:
         if interleaved:
             raise ValueError(
-                ("Since you have specified an explicit slice order, I don't "
-                 "expecting you to set the 'interleaved' flag."))
+                (
+                    "Since you have specified an explicit slice order, I don't "
+                    "expecting you to set the 'interleaved' flag."
+                )
+            )
 
         # here, I'm assuming an explicitly specified slice order as a
         # permutation on n symbols
-        slice_order = np.array(slice_order, dtype='int')
+        slice_order = np.array(slice_order, dtype="int")
 
         assert len(slice_order) == n_slices
-        assert np.all((0 <= slice_order) & (
-            slice_order < n_slices)), slice_order
+        assert np.all((0 <= slice_order) & (slice_order < n_slices)), slice_order
         assert len(set(slice_order)) == n_slices, slice_order
 
         slice_indices = slice_order
 
     slice_indices = np.array(slice_indices)
     if return_final:
-        slice_indices = np.array([np.nonzero(slice_indices == z)[0][0]
-                                  for z in range(n_slices)])
+        slice_indices = np.array(
+            [np.nonzero(slice_indices == z)[0][0] for z in range(n_slices)]
+        )
     return slice_indices
 
 
@@ -115,11 +120,9 @@ class STC(object):
 
     """
 
-    def __init__(self, slice_order='ascending',
-                 interleaved=False,
-                 ref_slice=0,
-                 verbose=1):
-
+    def __init__(
+        self, slice_order="ascending", interleaved=False, ref_slice=0, verbose=1
+    ):
         # slice acquisition info
         self.slice_order = slice_order
         self.interleaved = interleaved
@@ -171,7 +174,8 @@ class STC(object):
 
         if len(raw_data.shape) != 4:
             raise ValueError(
-                "raw_data must be 4D array, got %iD!" % len(raw_data.shape))
+                "raw_data must be 4D array, got %iD!" % len(raw_data.shape)
+            )
 
         # sanitize n_slices of raw_data
         if not fitting:
@@ -179,21 +183,27 @@ class STC(object):
                 if raw_data.shape[2] != self.n_slices:
                     raise ValueError(
                         "raw_data has wrong number of slices: expecting %i,"
-                        " got %i" % (self.n_slices, raw_data.shape[2]))
+                        " got %i" % (self.n_slices, raw_data.shape[2])
+                    )
 
             # sanitize n_scans of raw data
             if hasattr(self, "_n_scans"):
                 if raw_data.shape[3] != self.n_scans:
                     raise ValueError(
-                        ("raw_data has wrong number of volumes: expecting %i, "
-                         "got %i") % (self.n_scans, raw_data.shape[3]))
+                        ("raw_data has wrong number of volumes: expecting %i, got %i")
+                        % (self.n_scans, raw_data.shape[3])
+                    )
 
         # return sanitized raw_dat
         return raw_data
 
-    def fit(self, raw_data=None, n_slices=None, n_scans=None,
-            timing=None,
-            ):
+    def fit(
+        self,
+        raw_data=None,
+        n_slices=None,
+        n_scans=None,
+        timing=None,
+    ):
         """Fits an STC transform that can be later used (using the
         transform(..) method) to re-slice compatible data.
 
@@ -235,7 +245,10 @@ class STC(object):
 
         # set basic meta params
         if not raw_data is None:
-            raw_data = self._sanitize_raw_data(raw_data, fitting=True,)
+            raw_data = self._sanitize_raw_data(
+                raw_data,
+                fitting=True,
+            )
             self.n_slices = raw_data.shape[2]
             self.n_scans = raw_data.shape[-1]
 
@@ -244,20 +257,25 @@ class STC(object):
             if n_slices is None:
                 raise ValueError(
                     "raw_data parameter not specified. You need to"
-                    " specify a value for n_slices!")
+                    " specify a value for n_slices!"
+                )
             else:
                 self.n_slices = n_slices
             if n_scans is None:
                 raise ValueError(
                     "raw_data parameter not specified. You need to"
-                    " specify a value for n_scans!")
+                    " specify a value for n_scans!"
+                )
             else:
                 self.n_scans = n_scans
 
         # fix slice indices consistently with slice order
         self.slice_indices = get_slice_indices(
-            self.n_slices, slice_order=self.slice_order, return_final=True,
-            interleaved=self.interleaved)
+            self.n_slices,
+            slice_order=self.slice_order,
+            return_final=True,
+            interleaved=self.interleaved,
+        )
 
         # fix ref slice index, to be consistent with the slice order
         self.ref_slice = self.slice_indices[self.ref_slice]
@@ -271,7 +289,7 @@ class STC(object):
             self._log("Your TR is %s" % TR)
         else:
             # TR normalized to 1 (
-            slice_TR = 1. / self.n_slices
+            slice_TR = 1.0 / self.n_slices
 
         # least power of 2 not less than n_scans
         N = 2 ** int(np.floor(np.log2(self.n_scans)) + 1)
@@ -280,35 +298,35 @@ class STC(object):
         self.kernel_ = np.ndarray(
             (self.n_slices, N),
             dtype=np.complex,  # beware, default dtype is float!
-            )
+        )
 
         # loop over slices (z axis)
         for z in range(self.n_slices):
-            self._log(("STC: Estimating phase-shift transform for slice "
-                       "%i/%i...") % (z + 1, self.n_slices))
+            self._log(
+                ("STC: Estimating phase-shift transform for slice %i/%i...")
+                % (z + 1, self.n_slices)
+            )
 
             # compute time delta for shifting this slice w.r.t. the reference
-            shift_amount = (
-                self.slice_indices[z] - self.ref_slice) * slice_TR
+            shift_amount = (self.slice_indices[z] - self.ref_slice) * slice_TR
 
             # phi represents a range of phases up to the Nyquist
             # frequency
             phi = np.ndarray(N)
-            phi[0] = 0.
+            phi[0] = 0.0
             for f in range(int(N / 2)):
-                phi[f + 1] = -1. * shift_amount * 2 * np.pi * (f + 1) / N
+                phi[f + 1] = -1.0 * shift_amount * 2 * np.pi * (f + 1) / N
 
             # check if signal length is odd or even -- impacts how phases
             # (phi) are reflected across Nyquist frequency
             offset = N % 2
 
             # mirror phi about the center
-            phi[int(1 + N / 2 - offset):] = -phi[int(N / 2 + offset - 1):0:-1]
+            phi[int(1 + N / 2 - offset) :] = -phi[int(N / 2 + offset - 1) : 0 : -1]
 
             # map phi to frequency domain: phi -> complex
             # point z = exp(i * phi) on unit circle
-            self.kernel_[z] = scipy.cos(
-                phi) + scipy.sqrt(-1) * scipy.sin(phi)
+            self.kernel_[z] = scipy.cos(phi) + scipy.sqrt(-1) * scipy.sin(phi)
 
         self._log("Done.")
 
@@ -342,11 +360,12 @@ class STC(object):
 
         # sanitize raw_data
         if raw_data is None:
-            if hasattr(self, 'raw_data'):
+            if hasattr(self, "raw_data"):
                 raw_data = self.raw_data
             else:
                 raise RuntimeError(
-                    'You need to specify raw_data that will be transformed.')
+                    "You need to specify raw_data that will be transformed."
+                )
 
         raw_data = self._sanitize_raw_data(raw_data)
 
@@ -362,35 +381,45 @@ class STC(object):
         # loop over slices (z axis)
         for z in range(self.n_slices):
             self._log(
-                "STC: Correcting acquisition delay in slice %i/%i..." % (
-                    z + 1, self.n_slices))
+                "STC: Correcting acquisition delay in slice %i/%i..."
+                % (z + 1, self.n_slices)
+            )
 
             # prepare phase-shifter for this slice
-            shifter = np.array([self.kernel_[z], ] * n_rows).T
+            shifter = np.array(
+                [
+                    self.kernel_[z],
+                ]
+                * n_rows
+            ).T
 
             # loop over columns of slice z (y axis)
             for y in range(n_columns):
                 # extract column y of slice z of all 3D volumes
-                stack[:self.n_scans, :] = raw_data[:, y, z, :].reshape(
-                    (n_rows, self.n_scans)).T
+                stack[: self.n_scans, :] = (
+                    raw_data[:, y, z, :].reshape((n_rows, self.n_scans)).T
+                )
 
                 # fill-in continuous function to avoid edge effects (wrapping,
                 # etc.): simply linspace the displacement between the start
                 # and ending value of each BOLD response time-series
                 for x in range(stack.shape[1]):
-                    stack[self.n_scans:, x] = np.linspace(
-                        stack[self.n_scans - 1, x], stack[0, x],
-                        num=N - self.n_scans,).T
+                    stack[self.n_scans :, x] = np.linspace(
+                        stack[self.n_scans - 1, x],
+                        stack[0, x],
+                        num=N - self.n_scans,
+                    ).T
 
                 # apply phase-shift to column y of slice z of all 3D volumes
-                stack = np.real(np.fft.ifft(
-                    np.fft.fft(stack, axis=0) * shifter, axis=0))
+                stack = np.real(
+                    np.fft.ifft(np.fft.fft(stack, axis=0) * shifter, axis=0)
+                )
 
                 # re-insert phase-shifted column y of slice z for all 3D
                 # volumes
-                self.output_data_[:, y, z, :] = stack[:self.n_scans,
-                                                      :].T.reshape(
-                    (n_rows, self.n_scans))
+                self.output_data_[:, y, z, :] = stack[: self.n_scans, :].T.reshape(
+                    (n_rows, self.n_scans)
+                )
 
         self._log("Done.")
 
@@ -428,21 +457,22 @@ class fMRISTC(STC):
 
         """
 
-        if not hasattr(self, 'basenames_'):
+        if not hasattr(self, "basenames_"):
             self.basenames_ = None
 
-        if isinstance(raw_data, _basestring):
-            # _basestring
-            if isinstance(raw_data, _basestring):
+        if isinstance(raw_data, str):
+            # str
+            if isinstance(raw_data, str):
                 self.basenames_ = os.path.basename(raw_data)
             img = nibabel.load(raw_data)
             raw_data, self.affine_ = img.get_data(), img.get_affine()
         elif is_niimg(raw_data):
             raw_data, self.affine_ = raw_data.get_data(), raw_data.get_affine()
-        elif isinstance(raw_data, list) and (isinstance(
-                raw_data[0], _basestring) or is_niimg(raw_data[0])):
+        elif isinstance(raw_data, list) and (
+            isinstance(raw_data[0], str) or is_niimg(raw_data[0])
+        ):
             # list of strings or niimgs
-            if isinstance(raw_data[0], _basestring):
+            if isinstance(raw_data[0], str):
                 self.basenames_ = [os.path.basename(x) for x in raw_data]
             n_scans = len(raw_data)
             _first = check_niimg(raw_data[0])
@@ -468,8 +498,15 @@ class fMRISTC(STC):
     def get_raw_data(self):
         return self.raw_data
 
-    def transform(self, raw_data=None, output_dir=None,
-                  affine=None, prefix='a', basenames=None, ext=None):
+    def transform(
+        self,
+        raw_data=None,
+        output_dir=None,
+        affine=None,
+        prefix="a",
+        basenames=None,
+        ext=None,
+    ):
         self.output_data_ = STC.transform(self, raw_data=raw_data)
         if not basenames is None:
             self.basenames_ = basenames
@@ -478,20 +515,24 @@ class fMRISTC(STC):
         if not output_dir is None:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
-        if hasattr(self, 'affine_'):
+        if hasattr(self, "affine_"):
             if isinstance(self.affine_, list):
-                self.output_data_ = [nibabel.Nifti1Image(
-                    self.output_data_[..., t], self.affine_[t])
-                    for t in range(self.output_data_.shape[-1])]
+                self.output_data_ = [
+                    nibabel.Nifti1Image(self.output_data_[..., t], self.affine_[t])
+                    for t in range(self.output_data_.shape[-1])
+                ]
                 if output_dir is None:
                     self.output_data_ = nibabel.concat_images(
-                        self.output_data_, check_affines=False)
+                        self.output_data_, check_affines=False
+                    )
             else:
-                self.output_data_ = nibabel.Nifti1Image(self.output_data_,
-                                                        self.affine_)
+                self.output_data_ = nibabel.Nifti1Image(self.output_data_, self.affine_)
             if not output_dir is None:
                 self.output_data_ = save_vols(
                     self.output_data_,
-                    output_dir, prefix=prefix,
-                    basenames=get_basenames(self.basenames_, ext=ext))
+                    output_dir,
+                    prefix=prefix,
+                    basenames=get_basenames(self.basenames_, ext=ext),
+                )
+        return self.output_data_
         return self.output_data_
