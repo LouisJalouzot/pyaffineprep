@@ -17,19 +17,20 @@ from nilearn.image.image import check_niimg
 from .io_utils import load_vols
 
 # house-hold convenience naming
-MOTION_PARAMS_NAMES = {0x0: 'Tx',
-                       0x1: 'Ty',
-                       0x2: 'Tz',
-                       0x3: 'Rx',
-                       0x4: 'Ry',
-                       0x5: 'Rz',
-                       0x6: 'Zx',
-                       0x7: 'Zy',
-                       0x8: 'Zz',
-                       0x9: 'Sx',
-                       0xA: 'Sy',
-                       0xB: 'Sz',
-                       }
+MOTION_PARAMS_NAMES = {
+    0x0: "Tx",
+    0x1: "Ty",
+    0x2: "Tz",
+    0x3: "Rx",
+    0x4: "Ry",
+    0x5: "Rz",
+    0x6: "Zx",
+    0x7: "Zy",
+    0x8: "Zz",
+    0x9: "Sx",
+    0xA: "Sy",
+    0xB: "Sz",
+}
 
 
 def get_initial_motion_params():
@@ -40,7 +41,7 @@ def get_initial_motion_params():
     a unit zoom of in each coordinate direction, and zero shear.
     """
     p = np.zeros(12)
-    p[6:9] = 1.
+    p[6:9] = 1.0
     return p
 
 
@@ -84,7 +85,7 @@ def spm_matrix(p):
 
     # fill-up up p to length 12, if too short
     q = get_initial_motion_params()
-    p = np.hstack((p, q[len(p):12]))
+    p = np.hstack((p, q[len(p) : 12]))
 
     # translation
     T = np.eye(4)
@@ -125,22 +126,22 @@ def spm_matrix(p):
 
 def spm_imatrix(M):
     """Returns parameters the 12 parameters for a given affine
-    transformation.
+     transformation.
 
-    This function does the inverse operation of the `spm_matrix`
-    function.
+     This function does the inverse operation of the `spm_matrix`
+     function.
 
-    Parameters
-    ----------
-    M: array_like of shape (4, 4)
-        affine transformation matrix
+     Parameters
+     ----------
+     M: array_like of shape (4, 4)
+         affine transformation matrix
 
-   Returns
-   -------
-   p: 1D array of length 12
-       parameters for creating the afine transformation M
+    Returns
+    -------
+    p: 1D array of length 12
+        parameters for creating the afine transformation M
 
-   """
+    """
 
     # there may be slight rounding errors making |b| > 1
     def rang(b):
@@ -153,7 +154,7 @@ def spm_imatrix(M):
 
     # handle case of -ve determinant
     if scipy.linalg.det(R) < 0:
-        p[6] *= -1.
+        p[6] *= -1.0
 
     # shears
     C = scipy.linalg.lstsq(np.diag(np.diag(C)), C)[0]
@@ -164,8 +165,8 @@ def spm_imatrix(M):
 
     # this just leaves rotations in matrix R1
     p[4] = np.arcsin(rang(R1[0, 2]))
-    if (np.abs(p[4]) - np.pi / 2.) ** 2 < 1e-9:
-        p[3] = 0.
+    if (np.abs(p[4]) - np.pi / 2.0) ** 2 < 1e-9:
+        p[3] = 0.0
         p[5] = np.arctan2(-rang(R1[1, 0]), rang(-R1[2, 0] / R[1, 3]))
     else:
         c = np.cos(p[4])
@@ -301,8 +302,7 @@ def apply_realignment_to_vol(vol, q, inverse=True):
         M_q = scipy.linalg.inv(M_q)
 
     # apply affine transformation
-    return nibabel.Nifti1Image(vol.get_fdata(), np.dot(
-        M_q, vol.get_affine()))
+    return nibabel.Nifti1Image(vol.get_fdata(), np.dot(M_q, vol.get_affine()))
 
 
 def apply_realignment(vols, rp, inverse=True):
@@ -342,8 +342,10 @@ def apply_realignment(vols, rp, inverse=True):
     if rp.ndim == 1:
         rp = np.array([rp] * n_scans)
 
-    return [apply_realignment_to_vol(vol, rp[t], inverse=inverse)
-            for t, vol in enumerate(vols)]
+    return [
+        apply_realignment_to_vol(vol, rp[t], inverse=inverse)
+        for t, vol in enumerate(vols)
+    ]
 
 
 def extract_realignment_matrix(coregistered, original, inverse=False):
@@ -362,11 +364,11 @@ def extract_realignment_matrix(coregistered, original, inverse=False):
     inverse: bool (optional, default False)
         If True, then the matrix for the inverse transformation is
     """
-    if inverse: coregistered, original = original, coregistered
+    if inverse:
+        coregistered, original = original, coregistered
     coregistered = load_vols(coregistered)[0]
     original = load_vols(original)[0]
-    return np.dot(original.get_affine(),
-                  scipy.linalg.inv(coregistered.get_affine()))
+    return np.dot(original.get_affine(), scipy.linalg.inv(coregistered.get_affine()))
 
 
 def extract_realignment_params(coregistered, original, inverse=False):
@@ -385,6 +387,6 @@ def extract_realignment_params(coregistered, original, inverse=False):
     inverse: bool (optional, default False)
         If True, then the matrix for the inverse transformation is
     """
-    return spm_imatrix(extract_realignment_matrix(coregistered, original,
-                                                  inverse=inverse))
-                                                  inverse=inverse))
+    return spm_imatrix(
+        extract_realignment_matrix(coregistered, original, inverse=inverse)
+    )
