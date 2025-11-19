@@ -569,9 +569,9 @@ def generate_stc_thumbnails(
             return np.array([_sanitize_data(x) for x in data])
 
         if is_niimg(data):
-            data = np.rollaxis(data.get_data(), -1, start=0)
+            data = np.rollaxis(data.get_fdata(), -1, start=0)
         elif isinstance(data, str):
-            data = nibabel.load(data).get_data()
+            data = nibabel.load(data).get_fdata()
         return data
 
     def _get_vol_shape(x):
@@ -582,9 +582,9 @@ def generate_stc_thumbnails(
                 assert x.ndim > 3, x.ndim
                 return _get_vol_shape(x[..., 0])
         elif isinstance(x, str):
-            return _get_vol_shape(nibabel.load(x).get_data())
+            return _get_vol_shape(nibabel.load(x).get_fdata())
         elif is_niimg(x):
-            return _get_vol_shape(x.get_data())
+            return _get_vol_shape(x.get_fdata())
         else:
             return _get_vol_shape(x[0])
 
@@ -597,7 +597,7 @@ def generate_stc_thumbnails(
                 assert x.ndim == 4 == len(voxel) + 1
                 return x[voxel[0], voxel[1], voxel[2], :]
         elif is_niimg(x):
-            return _get_time_series_from_voxel(x.get_data(), voxel)
+            return _get_time_series_from_voxel(x.get_fdata(), voxel)
         elif isinstance(x, str):
             return _get_time_series_from_voxel(nibabel.load(x), voxel)
         else:

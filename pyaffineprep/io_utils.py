@@ -54,7 +54,7 @@ def load_vols(niimgs):
         If niimgs is an iterable, checks if data is really 4D. Then,
         considering that it is a list of niimg and load them one by one.
         If niimg is a string, consider it as a path to Nifti image and
-        call nibabel.load on it. If it is an object, check if get_data
+        call nibabel.load on it. If it is an object, check if get_fdata
         and get_affine methods are present, raise an Exception otherwise.
 
     Returns
@@ -84,7 +84,7 @@ def load_vols(niimgs):
         # should be 3d, squash 4th dimension otherwise
         if niimgs.shape[-1] == 1:
             return [
-                nibabel.Nifti1Image(niimgs.get_data()[:, :, :, 0], niimgs.get_affine())
+                nibabel.Nifti1Image(niimgs.get_fdata()[:, :, :, 0], niimgs.get_affine())
             ]
         else:
             return list(iter_img(niimgs))
@@ -377,7 +377,7 @@ def do_3Dto4D_merge(threeD_img_filenames, output_dir=None, output_filename=None)
     # sanity
     if len(fourD_img.shape) == 5:
         fourD_img = nibabel.Nifti1Image(
-            fourD_img.get_data()[..., ..., ..., 0, ...], fourD_img.get_affine()
+            fourD_img.get_fdata()[..., ..., ..., 0, ...], fourD_img.get_affine()
         )
 
     # save image to disk
@@ -469,7 +469,7 @@ def compute_mean_image(images, output_filename=None, threeD=False):
                 image = nibabel.load(image)
             else:
                 image = nibabel.concat_images(image, check_affines=False)
-        data = image.get_data()
+        data = image.get_fdata()
 
         if threeD:
             if is_4D(image):
@@ -619,15 +619,15 @@ def loaduint8(img, log=None):
 
     # load volume into memory
     img = load_vols(img)[0]
-    vol = img.get_data()
+    vol = img.get_fdata()
 
     # if isinstance(img, np.ndarray) or isinstance(img, list):
     #     vol = np.array(img)
     # elif isinstance(img, str):
     #     img = nibabel.load(img)
-    #     vol = img.get_data()
+    #     vol = img.get_fdata()
     # elif is_niimg(img):
-    #     vol = img.get_data()
+    #     vol = img.get_fdata()
     # else:
     #     raise TypeError("Unsupported input type: %s" % type(img))
 

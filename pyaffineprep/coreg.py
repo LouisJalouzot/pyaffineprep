@@ -175,7 +175,7 @@ def compute_similarity(
     M = np.dot(scipy.linalg.lstsq(src_affine, spm_matrix(params))[0], ref_affine)
 
     # create the joint histogram
-    jh = joint_histogram(ref.copy(), src.get_data(), grid=grid, M=M, bins=bins)
+    jh = joint_histogram(ref.copy(), src.get_fdata(), grid=grid, M=M, bins=bins)
 
     # compute similarity from joint histgram
     return compute_similarity_from_jhist(jh, fwhm=fwhm, cost_fun=cost_fun)
@@ -341,10 +341,10 @@ class Coregister(object):
 
         # tweak affines so we can play SPM games everafter
         target = nibabel.Nifti1Image(
-            target.get_data(), nibabel2spm_affine(target.get_affine())
+            target.get_fdata(), nibabel2spm_affine(target.get_affine())
         )
         source = nibabel.Nifti1Image(
-            source.get_data(), nibabel2spm_affine(source.get_affine())
+            source.get_fdata(), nibabel2spm_affine(source.get_affine())
         )
 
         # smooth images according to pyramidal sep
@@ -356,7 +356,7 @@ class Coregister(object):
                 / vxg
             )
             target = nibabel.Nifti1Image(
-                gaussian_filter(target.get_data(), fwhm2sigma(fwhmg)),
+                gaussian_filter(target.get_fdata(), fwhm2sigma(fwhmg)),
                 target.get_affine(),
             )
 
@@ -367,7 +367,7 @@ class Coregister(object):
                 / vxf
             )
             source = nibabel.Nifti1Image(
-                gaussian_filter(source.get_data(), fwhm2sigma(fwhmf)),
+                gaussian_filter(source.get_fdata(), fwhm2sigma(fwhmf)),
                 source.get_affine(),
             )
 
@@ -386,7 +386,7 @@ class Coregister(object):
 
             # interpolate target on sampled grid
             sampled_target = trilinear_interp(
-                target.get_data().ravel(order="F"), target.shape, *grid
+                target.get_fdata().ravel(order="F"), target.shape, *grid
             )
 
             # find optimal realignment parameters

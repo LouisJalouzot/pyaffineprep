@@ -23,6 +23,7 @@ dependencies = [
     "joblib",
     "nipype",
     "pybids",
+    "tqdm",
 ]
 
 [tool.setuptools.packages.find]

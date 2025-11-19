@@ -553,7 +553,7 @@ def get_ica_html_template(**kwargs):
     )
 
 
-def get_dataset_report_html_template(**kwargs):
+def get_fdataset_report_html_template(**kwargs):
     """Returns html template (string) for dataset report page (page de garde)."""
 
     return _get_template(
@@ -562,7 +562,7 @@ def get_dataset_report_html_template(**kwargs):
     )
 
 
-def get_dataset_report_preproc_html_template(**kwargs):
+def get_fdataset_report_preproc_html_template(**kwargs):
     """Returns html template (string) for dataset preproc report page."""
     return _get_template(
         os.path.join(
@@ -572,7 +572,7 @@ def get_dataset_report_preproc_html_template(**kwargs):
     )
 
 
-def get_dataset_report_stats_html_template(**kwargs):
+def get_fdataset_report_stats_html_template(**kwargs):
     """Returns html template (string) for dataset stats report page"""
     return _get_template(
         os.path.join(
@@ -582,7 +582,7 @@ def get_dataset_report_stats_html_template(**kwargs):
     )
 
 
-def get_dataset_report_log_html_template(**kwargs):
+def get_fdataset_report_log_html_template(**kwargs):
     """Returns html template (string) for dataset log report page."""
     return _get_template(
         os.path.join(

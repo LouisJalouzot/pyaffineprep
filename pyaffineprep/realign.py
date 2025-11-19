@@ -12,6 +12,7 @@ import numpy as np
 import scipy.linalg
 import scipy.ndimage as ndimage
 from joblib import Parallel, delayed
+from tqdm.auto import tqdm
 
 from .affine_transformations import (
     apply_realignment,
@@ -107,12 +108,12 @@ def _single_volume_fit(
 
     """
     moving_vol = nibabel.Nifti1Image(
-        moving_vol.get_data(), np.dot(affine_correction, moving_vol.get_affine())
+        moving_vol.get_fdata(), np.dot(affine_correction, moving_vol.get_affine())
     )
     # initialize final rp for this vol
     vol_rp = get_initial_motion_params()
     # smooth volume t
-    V = smooth_image(moving_vol, fwhm).get_data()
+    V = smooth_image(moving_vol, fwhm).get_fdata()
     # global optical flow problem with affine motion model: run
     # Gauss-Newton iterated LS (this loop should normally converge
     # after about as few as 5 iterations)
@@ -406,7 +407,7 @@ class MRIMotionCorrection(object):
 
         # affine correction
         vol_0 = nibabel.Nifti1Image(
-            vol_0.get_data(), np.dot(affine_correction, vol_0.get_affine())
+            vol_0.get_fdata(), np.dot(affine_correction, vol_0.get_affine())
         )
 
         # voxel dimensions on the working grid
@@ -423,7 +424,7 @@ class MRIMotionCorrection(object):
         ].reshape((3, -1))
 
         # smooth 0th volume to absorb noise before differentiating
-        sref_vol = smooth_image(vol_0, self.fwhm).get_data()
+        sref_vol = smooth_image(vol_0, self.fwhm).get_fdata()
 
         # resample the smoothed reference volume unto doped working grid
         G = ndimage.map_coordinates(
@@ -517,26 +518,31 @@ class MRIMotionCorrection(object):
         else:
             svf_kwargs = {"log": self._log}
 
-        rps = Parallel(n_jobs=n_jobs)(
-            delayed(_single_volume_fit)(
-                vol,
-                vol_0.get_affine(),
-                A0,
-                affine_correction,
-                b,
-                x1,
-                x2,
-                x3,
-                fwhm=self.fwhm,
-                n_iterations=self.n_iterations,
-                interp=self.interp,
-                lkp=self.lkp,
-                tol=self.tol,
-                **svf_kwargs,
-            )
-            for vol in vols[1:]
-        )
-        rp[1:, ...] = np.array(rps)
+        i = 1
+        for rvol in tqdm(
+            Parallel(n_jobs=n_jobs, return_as="generator")(
+                delayed(_single_volume_fit)(
+                    vol,
+                    vol_0.get_affine(),
+                    A0,
+                    affine_correction,
+                    b,
+                    x1,
+                    x2,
+                    x3,
+                    fwhm=self.fwhm,
+                    n_iterations=self.n_iterations,
+                    interp=self.interp,
+                    lkp=self.lkp,
+                    tol=self.tol,
+                    **svf_kwargs,
+                )
+                for vol in vols[1:]
+            ),
+            total=len(vols) - 1,
+        ):
+            rp[i] = rvol
+            i += 1
 
         return rp
 

@@ -9,10 +9,11 @@ References
 
 """
 
+import nibabel
 import numpy as np
 import scipy.linalg
-import nibabel
 from nilearn.image.image import check_niimg
+
 from .io_utils import load_vols
 
 # house-hold convenience naming
@@ -300,7 +301,7 @@ def apply_realignment_to_vol(vol, q, inverse=True):
         M_q = scipy.linalg.inv(M_q)
 
     # apply affine transformation
-    return nibabel.Nifti1Image(vol.get_data(), np.dot(
+    return nibabel.Nifti1Image(vol.get_fdata(), np.dot(
         M_q, vol.get_affine()))
 
 
@@ -385,4 +386,5 @@ def extract_realignment_params(coregistered, original, inverse=False):
         If True, then the matrix for the inverse transformation is
     """
     return spm_imatrix(extract_realignment_matrix(coregistered, original,
+                                                  inverse=inverse))
                                                   inverse=inverse))
